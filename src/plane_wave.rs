@@ -124,7 +124,7 @@ impl PlaneWaveCoordinates {
     {
         let spectral = self.spectral.to_canonical(spectral_value)?;
 
-        self.to_canonical_with_spectral(spectral, in_plane_value, None)
+        self.to_canonical_with_spectral(spectral, in_plane_value)
     }
 
     /// Converts caller-facing plane-wave coordinates into canonical backend
@@ -139,16 +139,14 @@ impl PlaneWaveCoordinates {
     /// canonical `k₀`.
     pub fn to_canonical_with_incident_index<T>(
         self,
-        spectral_value: T,
+        spectral: TransformJet<T>,
         in_plane_value: T,
         context: RefractiveIndexJet<T>,
     ) -> Result<PlaneWaveCoordinateTransform<T>, CoordinateTransformError>
     where
         T: Float + FromPrimitive,
     {
-        let spectral = self.spectral.to_canonical(spectral_value)?;
-
-        self.to_canonical_with_spectral(spectral, in_plane_value, Some(context))
+        self.resolve(spectral, in_plane_value, Some(context))
     }
 
     /// Converts plane-wave coordinates when the spectral transformation has
@@ -157,6 +155,17 @@ impl PlaneWaveCoordinates {
     /// This is useful when the caller must evaluate a dispersive incident
     /// material at canonical `k₀` before resolving an incident angle.
     pub fn to_canonical_with_spectral<T>(
+        self,
+        spectral: TransformJet<T>,
+        in_plane_value: T,
+    ) -> Result<PlaneWaveCoordinateTransform<T>, CoordinateTransformError>
+    where
+        T: Float + FromPrimitive,
+    {
+        self.resolve(spectral, in_plane_value, None)
+    }
+
+    fn resolve<T>(
         self,
         spectral: TransformJet<T>,
         in_plane_value: T,
@@ -210,12 +219,8 @@ mod tests {
     use super::*;
 
     use crate::{
-        angle::AngleUnit,
-        frequency::FrequencyUnit,
-        in_plane::{InPlaneCoordinate, InPlaneTransformError},
-        inverse_length::InverseLengthUnit,
-        length::LengthUnit,
-        metadata::AxisQuantity,
+        angle::AngleUnit, frequency::FrequencyUnit, in_plane::InPlaneCoordinate,
+        inverse_length::InverseLengthUnit, length::LengthUnit, metadata::AxisQuantity,
         spectral::SpectralCoordinate,
     };
 
@@ -278,8 +283,9 @@ mod tests {
 
         let index = TransformJet::new(1.5_f64, 0.0, 0.0);
 
+        let spectral = coordinates.transform_spectral(30.0).unwrap();
         let transform = coordinates
-            .to_canonical_with_incident_index(30.0, 0.0, index)
+            .to_canonical_with_incident_index(spectral, 0.0, index)
             .unwrap();
 
         let parallel = transform.parallel_angular_wavenumber;
@@ -312,12 +318,14 @@ mod tests {
 
         let context = TransformJet::new(1.5_f64, 0.0, 0.0);
 
+        let spectral = degree_coordinates.transform_spectral(100.0).unwrap();
         let degree_transform = degree_coordinates
-            .to_canonical_with_incident_index(30.0, 45.0, context)
+            .to_canonical_with_incident_index(spectral, 45.0, context)
             .unwrap();
 
+        let spectral = radian_coordinates.transform_spectral(100.0).unwrap();
         let radian_transform = radian_coordinates
-            .to_canonical_with_incident_index(30.0, std::f64::consts::FRAC_PI_4, context)
+            .to_canonical_with_incident_index(spectral, std::f64::consts::FRAC_PI_4, context)
             .unwrap();
 
         assert_close(
@@ -335,8 +343,9 @@ mod tests {
 
         let index = TransformJet::new(1.5_f64, 0.0, 0.0);
 
+        let spectral = coordinates.transform_spectral(100.0).unwrap();
         let transform = coordinates
-            .to_canonical_with_incident_index(30.0, std::f64::consts::FRAC_PI_6, index)
+            .to_canonical_with_incident_index(spectral, std::f64::consts::FRAC_PI_6, index)
             .unwrap();
 
         let spectral = transform.vacuum_angular_wavenumber;
@@ -354,8 +363,10 @@ mod tests {
 
         let index = TransformJet::new(1.5_f64, 0.01, 0.002);
 
+        let spectral = coordinates.transform_spectral(100.0).unwrap();
+
         let transform = coordinates
-            .to_canonical_with_incident_index(100.0, std::f64::consts::FRAC_PI_6, index)
+            .to_canonical_with_incident_index(spectral, std::f64::consts::FRAC_PI_6, index)
             .unwrap();
 
         let parallel = transform.parallel_angular_wavenumber;

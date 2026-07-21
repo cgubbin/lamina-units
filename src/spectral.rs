@@ -118,6 +118,7 @@ impl SpectralCoordinate {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn from_canonical<T>(
         self,
         vacuum_angular_wavenumber: T,

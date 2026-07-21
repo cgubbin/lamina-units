@@ -17,27 +17,6 @@ pub(crate) trait UnitScale<T> {
     fn scale(self) -> T;
 }
 
-/// Converts values between a user-facing unit and a canonical backend unit.
-///
-/// Both conversion directions return a [`TransformJet`], preserving the first
-/// and second derivatives of the coordinate transformation.
-///
-/// For a local coordinate `x` and canonical coordinate `q`,
-/// [`CanonicalUnit::to_canonical`] returns
-///
-/// ```text
-/// (q(x), dq/dx, d²q/dx²),
-/// ```
-///
-/// while [`CanonicalUnit::from_canonical`] returns
-///
-/// ```text
-/// (x(q), dx/dq, d²x/dq²).
-/// ```
-///
-/// [`TransformJet`]: crate::TransformJet
-///
-
 /// The value and first two derivatives of a scalar transformation.
 ///
 /// For a backend coordinate `q = q(x)`:
