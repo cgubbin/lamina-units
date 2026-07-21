@@ -1,0 +1,36 @@
+[package]
+name = "tmm-units"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Unit primitives for the tmm ecosystem"
+license = "MIT"
+
+[lib]
+name = "tmm_units"
+path = "src/lib.rs"
+
+
+[dependencies]
+num-traits = "0.2.19"
+serde = { version = "1.0.229", features = ["derive"], optional = true }
+thiserror = "2.0.19"
+
+[dev-dependencies]
+
+
+[profile.dev]
+debug = true
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+[workspace.metadata.release]
+tag = true
+push = true
+publish = true
+sign-commit = false
+
+[features]
+serde = ["dep:serde"]
