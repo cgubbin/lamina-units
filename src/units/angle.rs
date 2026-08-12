@@ -1,4 +1,4 @@
-use crate::{label::UnitLabel, private::conversion_constant, transform::UnitScale};
+use crate::{label::UnitLabel, private::conversion_constant};
 
 use num_traits::{Float, FromPrimitive};
 
@@ -13,6 +13,15 @@ pub enum AngleUnit {
     Degree,
 }
 
+impl AngleUnit {
+    pub fn scale_to_radians<T: Float + FromPrimitive>(&self) -> T {
+        match self {
+            Self::Radian => T::one(),
+            Self::Degree => conversion_constant(std::f64::consts::PI / 180.0),
+        }
+    }
+}
+
 impl UnitLabel for AngleUnit {
     fn symbol(&self) -> &'static str {
         match self {
@@ -22,24 +31,11 @@ impl UnitLabel for AngleUnit {
     }
 }
 
-impl<T> UnitScale<T> for AngleUnit
-where
-    T: Float + FromPrimitive,
-{
-    /// Returns the scale from the represented angle unit to radians.
-    fn scale(self) -> T {
-        match self {
-            Self::Radian => T::one(),
-            Self::Degree => conversion_constant(std::f64::consts::PI / 180.0),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::{label::UnitLabel, transform::UnitScale};
+    use crate::label::UnitLabel;
 
     fn assert_close(actual: f64, expected: f64) {
         let tolerance = 1.0e-14_f64.max(expected.abs() * 1.0e-13);
@@ -52,28 +48,28 @@ mod tests {
 
     #[test]
     fn radian_scale_is_identity() {
-        let scale = <AngleUnit as UnitScale<f64>>::scale(AngleUnit::Radian);
+        let scale = AngleUnit::Radian.scale_to_radians::<f64>();
 
         assert_eq!(scale, 1.0);
     }
 
     #[test]
     fn degree_scale_converts_to_radians() {
-        let scale = <AngleUnit as UnitScale<f64>>::scale(AngleUnit::Degree);
+        let scale = AngleUnit::Degree.scale_to_radians::<f64>();
 
         assert_close(scale, std::f64::consts::PI / 180.0);
     }
 
     #[test]
     fn one_hundred_and_eighty_degrees_is_pi_radians() {
-        let scale = <AngleUnit as UnitScale<f64>>::scale(AngleUnit::Degree);
+        let scale = AngleUnit::Degree.scale_to_radians::<f64>();
 
         assert_close(180.0 * scale, std::f64::consts::PI);
     }
 
     #[test]
     fn ninety_degrees_is_pi_over_two_radians() {
-        let scale = <AngleUnit as UnitScale<f64>>::scale(AngleUnit::Degree);
+        let scale = AngleUnit::Degree.scale_to_radians::<f64>();
 
         assert_close(90.0 * scale, std::f64::consts::FRAC_PI_2);
     }
@@ -86,7 +82,7 @@ mod tests {
 
     #[test]
     fn angle_scale_supports_f32() {
-        let scale = <AngleUnit as UnitScale<f32>>::scale(AngleUnit::Degree);
+        let scale = AngleUnit::Degree.scale_to_radians::<f32>();
 
         let expected = std::f32::consts::PI / 180.0;
 

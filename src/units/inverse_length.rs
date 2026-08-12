@@ -1,4 +1,4 @@
-use crate::{label::UnitLabel, private::conversion_constant, transform::UnitScale};
+use crate::{label::UnitLabel, private::conversion_constant};
 
 use num_traits::{Float, FromPrimitive};
 
@@ -42,6 +42,21 @@ pub enum InverseLengthUnit {
     PerNanometre,
 }
 
+impl InverseLengthUnit {
+    pub fn scale_to_inverse_centimetres<T>(self) -> T
+    where
+        T: Float + FromPrimitive,
+    {
+        match self {
+            Self::PerMetre => conversion_constant(1.0e-2),
+            Self::PerCentimetre => T::one(),
+            Self::PerMillimetre => conversion_constant(10.0),
+            Self::PerMicrometre => conversion_constant(1.0e4),
+            Self::PerNanometre => conversion_constant(1.0e7),
+        }
+    }
+}
+
 impl UnitLabel for InverseLengthUnit {
     fn symbol(&self) -> &'static str {
         match self {
@@ -50,21 +65,6 @@ impl UnitLabel for InverseLengthUnit {
             Self::PerMillimetre => "mm⁻¹",
             Self::PerMicrometre => "µm⁻¹",
             Self::PerNanometre => "nm⁻¹",
-        }
-    }
-}
-
-impl<T> UnitScale<T> for InverseLengthUnit
-where
-    T: Float + FromPrimitive,
-{
-    fn scale(self) -> T {
-        match self {
-            Self::PerMetre => conversion_constant(1.0e-2),
-            Self::PerCentimetre => T::one(),
-            Self::PerMillimetre => conversion_constant(10.0),
-            Self::PerMicrometre => conversion_constant(1.0e4),
-            Self::PerNanometre => conversion_constant(1.0e7),
         }
     }
 }
@@ -86,35 +86,35 @@ mod tests {
 
     #[test]
     fn inverse_metre_scale_is_correct() {
-        let scale = <InverseLengthUnit as UnitScale<f64>>::scale(InverseLengthUnit::PerMetre);
+        let scale = InverseLengthUnit::PerMetre.scale_to_inverse_centimetres::<f64>();
 
         assert_close(scale, 1.0e-2);
     }
 
     #[test]
     fn inverse_centimetre_scale_is_correct() {
-        let scale = <InverseLengthUnit as UnitScale<f64>>::scale(InverseLengthUnit::PerCentimetre);
+        let scale = InverseLengthUnit::PerCentimetre.scale_to_inverse_centimetres::<f64>();
 
         assert_close(scale, 1.0);
     }
 
     #[test]
     fn inverse_millimetre_scale_is_correct() {
-        let scale = <InverseLengthUnit as UnitScale<f64>>::scale(InverseLengthUnit::PerMillimetre);
+        let scale = InverseLengthUnit::PerMillimetre.scale_to_inverse_centimetres::<f64>();
 
         assert_close(scale, 10.0);
     }
 
     #[test]
     fn inverse_micrometre_scale_is_correct() {
-        let scale = <InverseLengthUnit as UnitScale<f64>>::scale(InverseLengthUnit::PerMicrometre);
+        let scale = InverseLengthUnit::PerMicrometre.scale_to_inverse_centimetres::<f64>();
 
         assert_close(scale, 1.0e4);
     }
 
     #[test]
     fn inverse_nanometre_scale_is_correct() {
-        let scale = <InverseLengthUnit as UnitScale<f64>>::scale(InverseLengthUnit::PerNanometre);
+        let scale = InverseLengthUnit::PerNanometre.scale_to_inverse_centimetres::<f64>();
 
         assert_close(scale, 1.0e7);
     }
@@ -130,7 +130,7 @@ mod tests {
         ];
 
         for (unit, value, expected) in cases {
-            let scale = <InverseLengthUnit as UnitScale<f64>>::scale(unit);
+            let scale = unit.scale_to_inverse_centimetres::<f64>();
 
             assert_close(value * scale, expected);
         }
@@ -149,7 +149,7 @@ mod tests {
         ];
 
         for (unit, expected) in cases {
-            let scale = <InverseLengthUnit as UnitScale<f64>>::scale(unit);
+            let scale = unit.scale_to_inverse_centimetres::<f64>();
 
             assert_close(canonical / scale, expected);
         }
@@ -166,7 +166,7 @@ mod tests {
         ];
 
         for unit in units {
-            let scale = <InverseLengthUnit as UnitScale<f64>>::scale(unit);
+            let scale = unit.scale_to_inverse_centimetres::<f64>();
 
             assert!(scale.is_finite());
             assert!(scale > 0.0);
@@ -185,10 +185,9 @@ mod tests {
     #[test]
     fn scales_support_f32() {
         let micrometre_scale =
-            <InverseLengthUnit as UnitScale<f32>>::scale(InverseLengthUnit::PerMicrometre);
+            InverseLengthUnit::PerMicrometre.scale_to_inverse_centimetres::<f32>();
 
-        let nanometre_scale =
-            <InverseLengthUnit as UnitScale<f32>>::scale(InverseLengthUnit::PerNanometre);
+        let nanometre_scale = InverseLengthUnit::PerNanometre.scale_to_inverse_centimetres::<f32>();
 
         assert!((micrometre_scale - 1.0e4).abs() < 1.0e-2);
         assert!((nanometre_scale - 1.0e7).abs() < 1.0);

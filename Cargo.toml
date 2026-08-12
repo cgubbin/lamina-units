@@ -1,13 +1,13 @@
 [package]
-name = "tmm-units"
+name = "lamina-units"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Unit primitives for the tmm ecosystem"
+description = "Unit primitives for the lamina ecosystem"
 license = "MIT"
 
 [lib]
-name = "tmm_units"
+name = "lamina_units"
 path = "src/lib.rs"
 
 
@@ -17,6 +17,7 @@ serde = { version = "1.0.229", features = ["derive"], optional = true }
 thiserror = "2.0.19"
 
 [dev-dependencies]
+approx = "0.5.1"
 
 
 [profile.dev]
