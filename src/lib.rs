@@ -15,8 +15,10 @@ mod units;
 pub use label::{CoordinateLabel, UnitLabel};
 pub use metadata::{AxisMetadata, AxisQuantity};
 
+pub use constants::SPEED_OF_LIGHT_CM_PER_SECOND;
 pub use quantities::{
-    Angle, AngularFrequency, Frequency, Length, SpectralQuantity, SpectralQuantityExt,
-    VacuumAngularWavenumber, VacuumAngularWavenumberSquared, VacuumWavenumber, Wavelength,
+    Angle, AngularFrequency, Frequency, Length, SpectralCoordinate, SpectralQuantity,
+    SpectralQuantityExt, SpectralTransform, VacuumAngularWavenumber,
+    VacuumAngularWavenumberSquared, VacuumWavenumber, Wavelength,
 };
 pub use units::{AngleUnit, AngularFrequencyUnit, FrequencyUnit, InverseLengthUnit, LengthUnit};
