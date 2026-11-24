@@ -1,379 +1,76 @@
-# tmm-units
+# lamina-units
 
-Coordinate transformations and derivative metadata for planar optical systems.
+Typed physical quantities and units for the lamina crates.
 
-This crate converts caller-facing spectral and in-plane coordinates into the
-canonical coordinates used by a planar transfer-matrix backend.
-
-The canonical coordinates are:
-
-- vacuum angular wavenumber `k₀`, in `cm⁻¹`;
-- parallel angular wavenumber `k∥`, in `cm⁻¹`.
-
-Callers may instead parameterise a calculation using quantities that are
-more natural for experiments, simulations, or mode calculations:
-
-- wavelength;
-- frequency or angular frequency;
-- vacuum wavenumber or vacuum angular wavenumber;
-- parallel wavenumber;
-- effective index;
-- incidence angle in degrees or radians.
-
-The crate evaluates the corresponding coordinate transformation together
-with its first- and second-order derivatives. These derivatives can be used
-to transform observable derivatives from backend coordinates into the units
-and parameterisation selected by the caller.
-
-## Coupled plane-wave coordinates
-
-Spectral and in-plane coordinates are not always independent.
-
-For example, effective index is defined by
-
-```
-k∥ = n_eff k₀,
-```
-
-while an incidence angle in an incident medium with refractive index
-`n_inc(k₀)` gives
-
-```
-k∥ = n_inc(k₀) k₀ sin(θ).
-```
-
-Consequently, the crate treats a plane-wave parameterisation as the coupled
-transformation
-
-```
-(spectral coordinate, in-plane coordinate) -> (k₀, k∥).
-```
-
-The resulting [`PlaneWaveCoordinateTransform`] contains the value, Jacobian,
-and Hessian of both canonical coordinates with respect to the two
-caller-facing coordinates.
-
-This distinction is important when transforming derivatives. A spectral
-derivative taken at fixed angle or fixed effective index is not the same as
-a backend derivative taken at fixed `k∥`.
-
-## Direct in-plane coordinates
-
-Coordinates that do not require material information can be transformed in
-one step.
+`lamina-units` gives every spectral and length quantity a type that carries its
+unit, so a value can't cross a crate boundary without saying what it is. It
+converts between the spectral parameterisations used in optics and the canonical
+spectral coordinate used by the numerical crates: vacuum angular wavenumber
+`k₀ = 2π/λ₀`, in `cm⁻¹`.
 
 ```rust
-use tmm_units::{
-    FrequencyUnit,
-    InPlaneCoordinate,
-    PlaneWaveCoordinates,
-    SpectralCoordinate,
-    InverseLengthUnit,
-};
+use lamina_units::Wavelength;
 
-let coordinates = PlaneWaveCoordinates::new(
-    SpectralCoordinate::Frequency(FrequencyUnit::Terahertz),
-    InPlaneCoordinate::ParallelAngularWavenumber(
-        InverseLengthUnit::PerCentimetre,
-    ),
-);
-
-let transform = coordinates
-    .to_canonical(30.0_f64, 2_500.0)
-    .unwrap();
-
-let k0 = transform.vacuum_angular_wavenumber;
-let k_parallel = transform.parallel_angular_wavenumber;
-
-assert!(k0.value > 0.0);
-assert_eq!(k_parallel.value, 2_500.0);
-assert_eq!(k_parallel.spectral_first, 0.0);
-assert_eq!(k_parallel.in_plane_first, 1.0);
+let wavelength = Wavelength::nanometres(1550.0_f64);
+let k0 = wavelength.vacuum_wavenumber().vacuum_angular_wavenumber();
+let expected = 2.0 * std::f64::consts::PI / 1.55e-4; // cm⁻¹
+assert!((k0.as_inverse_centimetres() - expected).abs() < 1e-6);
 ```
 
-Here the in-plane coordinate is already the canonical parallel angular
-wavenumber, so it is independent of the spectral coordinate.
+## What it provides
 
-## Effective index
+- **Quantities:** `Wavelength`, `Length`, `Frequency`, `AngularFrequency`,
+  `VacuumWavenumber`, `VacuumAngularWavenumber`, `VacuumAngularWavenumberSquared`
+  and `Angle`, each generic over its float type and tagged with its unit.
+- **Units:** `LengthUnit`, `InverseLengthUnit`, `FrequencyUnit`,
+  `AngularFrequencyUnit` and `AngleUnit`, with their conversion factors.
+- **Spectral transforms:** `SpectralQuantity`, `SpectralCoordinate` and
+  `SpectralTransform` map a caller-facing spectral quantity to `k₀` together
+  with the derivatives of that map, so derivatives can be reported in the
+  caller's own parameterisation.
+- **Labels and axis metadata:** `UnitLabel`, `CoordinateLabel`, `AxisMetadata`
+  and `AxisQuantity` name the quantity and unit of a sampled axis.
+- **Constants:** the speed of light in `cm·s⁻¹`.
 
-Effective index is useful when evaluating guided and leaky modes.
+The optional `serde` feature derives `Serialize` and `Deserialize` for the unit
+enums.
 
-```rust
-use tmm_units::{
-    InPlaneCoordinate,
-    LengthUnit,
-    PlaneWaveCoordinates,
-    SpectralCoordinate,
-};
+## Boundary
 
-let coordinates = PlaneWaveCoordinates::new(
-    SpectralCoordinate::VacuumWavelength(LengthUnit::Micrometre),
-    InPlaneCoordinate::EffectiveIndex,
-);
-
-let transform = coordinates
-    .to_canonical(10.0_f64, 1.5)
-    .unwrap();
-
-let k0 = transform.vacuum_angular_wavenumber;
-let k_parallel = transform.parallel_angular_wavenumber;
-
-assert!((k_parallel.value - 1.5 * k0.value).abs() < 1.0e-10);
-
-// At fixed effective index, changing the spectral coordinate also changes
-// the parallel wavenumber.
-assert!(
-    (k_parallel.spectral_first - 1.5 * k0.spectral_first).abs()
-        < 1.0e-10
-);
-
-// The derivative with respect to effective index is k₀.
-assert!(
-    (k_parallel.in_plane_first - k0.value).abs()
-        < 1.0e-10
-);
-```
-
-## Incidence angle
-
-An incidence-angle parameterisation requires the refractive index of the
-incident medium at the canonical spectral coordinate.
-
-The transformation is therefore performed in two stages:
-
-1. transform the caller's spectral coordinate into `k₀`;
-2. evaluate the incident material at that `k₀`;
-3. resolve the angle into `k∥`.
-
-```rust
-use tmm_units::{
-    AngleUnit,
-    InPlaneCoordinate,
-    LengthUnit,
-    PlaneWaveCoordinates,
-    RefractiveIndexJet,
-    SpectralCoordinate,
-    TransformJet,
-};
-
-let coordinates = PlaneWaveCoordinates::new(
-    SpectralCoordinate::VacuumWavelength(LengthUnit::Micrometre),
-    InPlaneCoordinate::IncidentAngle(AngleUnit::Degree),
-);
-
-let spectral = coordinates
-    .transform_spectral(10.0_f64)
-    .unwrap();
-
-// In a real application, these values would be obtained by evaluating the
-// incident material at `spectral.value`.
-//
-// value  = n(k₀)
-// first  = dn/dk₀
-// second = d²n/dk₀²
-let incident_index: RefractiveIndexJet<f64> =
-    TransformJet::new(1.5, 0.0, 0.0);
-
-let transform = coordinates
-    .to_canonical_with_incident_index(
-        spectral,
-        30.0,
-        incident_index,
-    )
-    .unwrap();
-
-let k0 = transform.vacuum_angular_wavenumber.value;
-let k_parallel = transform.parallel_angular_wavenumber.value;
-
-let expected = 1.5 * k0 * 0.5;
-assert!((k_parallel - expected).abs() < 1.0e-10);
-```
-
-The supplied refractive-index jet must contain derivatives with respect to
-canonical vacuum angular wavenumber, not with respect to the caller's
-spectral coordinate.
-
-For a dispersive incident medium, the derivatives `dn/dk₀` and `d²n/dk₀²`
-contribute to the transformed spectral derivatives of `k∥`.
-
-## Reusing a spectral transformation
-
-Higher-level crates may already need the canonical spectral coordinate for
-material evaluation. The spectral transformation can be reused to avoid
-evaluating it more than once.
-
-```rust
-use tmm_units::{
-    InPlaneCoordinate,
-    LengthUnit,
-    PlaneWaveCoordinates,
-    SpectralCoordinate,
-};
-
-let coordinates = PlaneWaveCoordinates::new(
-    SpectralCoordinate::VacuumWavelength(LengthUnit::Micrometre),
-    InPlaneCoordinate::EffectiveIndex,
-);
-
-let spectral = coordinates
-    .transform_spectral(8.0_f64)
-    .unwrap();
-
-let transform = coordinates
-    .to_canonical_with_spectral(spectral, 2.0)
-    .unwrap();
-
-assert_eq!(
-    transform.parallel_angular_wavenumber.value,
-    2.0 * transform.vacuum_angular_wavenumber.value,
-);
-```
-
-[`PlaneWaveCoordinates::to_canonical_with_spectral`] supports parameterisations
-that do not require an incident refractive index. For incidence-angle
-coordinates, use
-[`PlaneWaveCoordinates::to_canonical_with_incident_index`] instead.
-
-## Coordinate derivatives
-
-Each canonical coordinate is represented by a
-[`BivariateTransformJet`]. If the caller coordinates are `(s, p)`, its
-fields have the following meaning:
-
-| Field | Meaning |
+| lamina-units owns | lamina-units never owns |
 | --- | --- |
-| `value` | `q(s, p)` |
-| `spectral_first` | `∂q/∂s` |
-| `in_plane_first` | `∂q/∂p` |
-| `spectral_second` | `∂²q/∂s²` |
-| `mixed_second` | `∂²q/(∂s ∂p)` |
-| `in_plane_second` | `∂²q/∂p²` |
+| Typed quantities, units and their conversions | Material models or material data (`lamina-materials`) |
+| The canonical spectral coordinate `k₀` in `cm⁻¹` and maps into it | Layer stacks, transfer or scattering matrices (`lamina-core`) |
+| Derivatives of unit and spectral maps | In-plane coordinates that need a medium: effective index, incidence angle (`lamina-core`) |
+| Labels and metadata for sampled axes | Mode searches, fields or any solver (`lamina-mode`) |
 
-These jets provide the Jacobian and coordinate Hessians needed to transform
-first and second derivatives of backend observables.
+A change that adds physics (a medium, a stack, a solver) to this crate crosses
+the boundary and belongs in a crate further up.
 
-Suppose a backend observable `F` is a function of the canonical coordinates
+## Family
 
-```
-F = F(k₀, k∥).
-```
-
-Its derivative with respect to the caller's spectral coordinate is
-
-```
-∂F/∂s
-    = ∂F/∂k₀ ∂k₀/∂s
-    + ∂F/∂k∥ ∂k∥/∂s.
+```text
+lamina-units       typed quantities and units (this crate)
+lamina-core        stacks, transfer and scattering matrices, fields
+lamina-materials   material models implementing lamina-core's material traits
+lamina-mode        modes of planar multilayers, with numerical evidence
 ```
 
-Full second-order conversion additionally requires the canonical mixed
-derivative
+The crates are versioned together until 1.0; each changelog names the
+conventions a release changes.
 
-```
-∂²F/(∂k₀ ∂k∥).
-```
+## License
 
-This mixed derivative is generally required for angle and effective-index
-parameterisations because `k∥` depends on the spectral coordinate.
+Licensed under either of
 
-## Axis metadata
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <https://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/licenses/MIT>)
 
-[`PlaneWaveCoordinates`] also reports metadata for the two caller-facing
-axes. Plotting crates can use this metadata without inspecting the internal
-spectral and in-plane coordinate variants.
+at your option.
 
-```rust
-use tmm_units::{
-    AngleUnit,
-    AxisQuantity,
-    InPlaneCoordinate,
-    LengthUnit,
-    PlaneWaveCoordinates,
-    SpectralCoordinate,
-};
+### Contribution
 
-let coordinates = PlaneWaveCoordinates::new(
-    SpectralCoordinate::VacuumWavelength(LengthUnit::Micrometre),
-    InPlaneCoordinate::IncidentAngle(AngleUnit::Degree),
-);
-
-let [spectral_axis, in_plane_axis] = coordinates.axes();
-
-assert_eq!(
-    spectral_axis.quantity,
-    AxisQuantity::VacuumWavelength,
-);
-assert_eq!(spectral_axis.label, "λ₀ (µm)");
-
-assert_eq!(
-    in_plane_axis.quantity,
-    AxisQuantity::IncidentAngle,
-);
-assert_eq!(in_plane_axis.label, "θ (°)");
-```
-
-Dimensionless axes, such as effective index, have no unit symbol:
-
-```rust
-use tmm_units::{
-    AxisQuantity,
-    FrequencyUnit,
-    InPlaneCoordinate,
-    PlaneWaveAxis,
-    PlaneWaveCoordinates,
-    SpectralCoordinate,
-};
-
-let coordinates = PlaneWaveCoordinates::new(
-    SpectralCoordinate::Frequency(FrequencyUnit::Terahertz),
-    InPlaneCoordinate::EffectiveIndex,
-);
-
-let axis = coordinates.axis_metadata(PlaneWaveAxis::InPlane);
-
-assert_eq!(axis.quantity, AxisQuantity::EffectiveIndex);
-assert_eq!(axis.unit_symbol, None);
-assert_eq!(axis.label, "n_eff");
-```
-
-## Units and angular quantities
-
-Ordinary and angular quantities use the same underlying dimensional units
-where appropriate, but remain distinct coordinate variants.
-
-For example:
-
-```
-vacuum wavenumber          ν̃ = 1 / λ
-vacuum angular wavenumber  k₀ = 2π / λ
-```
-
-Both may be expressed in `cm⁻¹`, but their numerical values differ by a
-factor of `2π`.
-
-The same distinction is retained for parallel wavenumber and parallel
-angular wavenumber.
-
-Frequency and angular frequency use separate unit enums because their unit
-symbols are conventionally distinct:
-
-```
-frequency          f  in Hz
-angular frequency  ω  in rad·s⁻¹
-```
-
-## Scope
-
-This crate performs coordinate algebra and unit conversion. It does not:
-
-- evaluate material models;
-- choose an incident medium;
-- decide whether a requested angle is physically propagating;
-- solve the transfer or scattering matrix;
-- compute optical observables.
-
-Higher-level optical crates are responsible for evaluating the incident
-refractive index and supplying its derivatives when an incidence-angle
-parameterisation is used.
-
-License: MIT
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
