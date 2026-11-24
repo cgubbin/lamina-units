@@ -3,7 +3,7 @@
 Typed physical quantities and units for the lamina crates.
 
 `lamina-units` gives every spectral and length quantity a type that carries its
-unit, so a value can't cross a crate boundary without saying what it is. It
+unit, so every value says what it is. It
 converts between the spectral parameterisations used in optics and the canonical
 spectral coordinate used by the numerical crates: vacuum angular wavenumber
 `k₀ = 2π/λ₀`, in `cm⁻¹`.
@@ -35,17 +35,11 @@ assert!((k0.as_inverse_centimetres() - expected).abs() < 1e-6);
 The optional `serde` feature derives `Serialize` and `Deserialize` for the unit
 enums.
 
-## Boundary
+## Scope
 
-| lamina-units owns | lamina-units never owns |
-| --- | --- |
-| Typed quantities, units and their conversions | Material models or material data (`lamina-materials`) |
-| The canonical spectral coordinate `k₀` in `cm⁻¹` and maps into it | Layer stacks, transfer or scattering matrices (`lamina-core`) |
-| Derivatives of unit and spectral maps | In-plane coordinates that need a medium: effective index, incidence angle (`lamina-core`) |
-| Labels and metadata for sampled axes | Mode searches, fields or any solver (`lamina-mode`) |
-
-A change that adds physics (a medium, a stack, a solver) to this crate crosses
-the boundary and belongs in a crate further up.
+lamina-units provides typed spectral and length quantities with their units, exact conversions between them,
+and maps from any caller-facing spectral parameterisation to the canonical coordinate `k₀` in `cm⁻¹`, together
+with the derivatives of those maps. It also names sampled axes with labels and metadata.
 
 ## Family
 
