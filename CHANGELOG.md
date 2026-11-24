@@ -3,7 +3,11 @@
 The lamina crates (lamina-units, lamina-core, lamina-materials, lamina-mode) are
 released in step until 1.0. Each entry names any shared convention it changes.
 
-## 0.1.0 (unreleased)
+## 0.1.1
+
+The README describes the crate's scope. No code changes; 0.1.0 is yanked.
+
+## 0.1.0
 
 First release on crates.io.
 
